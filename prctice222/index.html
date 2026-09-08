@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLI Portfolio | Cybersecurity</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --text-color: #00ff41;
+            --text-glow: 0 0 5px rgba(0, 255, 65, 0.5);
+            --font-family: 'Courier New', Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            font-size: 16px;
+            overflow: hidden;
+            text-shadow: var(--text-glow);
+        }
+
+        /* CRT Scanline Effect */
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(
+                to bottom,
+                rgba(18, 16, 16, 0) 50%,
+                rgba(0, 0, 0, 0.25) 50%
+            );
+            background-size: 100% 4px;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        /* Screen Flicker Animation */
+        body::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: rgba(0, 255, 65, 0.02);
+            opacity: 0;
+            z-index: 50;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.02; }
+            50% { opacity: 0.05; }
+            100% { opacity: 0.02; }
+        }
+
+        #terminal {
+            padding: 20px;
+            height: 100%;
+            overflow-y: auto;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Hide scrollbar for a cleaner look */
+        #terminal::-webkit-scrollbar {
+            width: 8px;
+        }
+        #terminal::-webkit-scrollbar-thumb {
+            background-color: #004411;
+        }
+
+        .output-line {
+            margin-bottom: 5px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .input-wrapper {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+            display: none; /* Hidden during boot sequence */
+        }
+
+        .prompt {
+            margin-right: 10px;
+            color: #00ff41;
+            font-weight: bold;
+        }
+
+        #cmd-input {
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            font-family: var(--font-family);
+            font-size: 16px;
+            flex-grow: 1;
+            outline: none;
+            text-shadow: var(--text-glow);
+            caret-color: transparent; /* Hide default caret to use custom one */
+        }
+
+        /* Custom Blinking Cursor */
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 18px;
+            background-color: var(--text-color);
+            vertical-align: middle;
+            animation: blink 1s step-end infinite;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .ascii-art {
+            white-space: pre;
+            font-size: 12px;
+            line-height: 1.2;
+            color: #00cc33;
+            margin-bottom: 15px;
+        }
+
+        .error { color: #ff3333; text-shadow: 0 0 5px rgba(255, 51, 51, 0.5); }
+        .info { color: #33ccff; }
+        .highlight { color: #ffff33; }
+    </style>
+</head>
+<body>
+
+    <div id="terminal">
+        <div id="output"></div>
+        <div class="input-wrapper" id="input-wrapper">
+            <span class="prompt">guest@sec-lab:~$</span>
+            <input type="text" id="cmd-input" autocomplete="off" spellcheck="false" autofocus>
+            <span class="cursor"></span>
+        </div>
+    </div>
+
+    <script>
+        const terminal = document.getElementById('terminal');
+        const output = document.getElementById('output');
+        const inputWrapper = document.getElementById('input-wrapper');
+        const cmdInput = document.getElementById('cmd-input');
+
+        // Force focus on input when clicking anywhere on the screen
+        document.addEventListener('click', () => cmdInput.focus());
+
+        // File system structure for the simulation
+        const fileSystem = {
+            'about.txt': 'ROLE: Penetration Tester & Security Researcher\nSKILLS: Network Exploitation, Web App Sec, Reverse Engineering\nSTATUS: Actively hunting bugs.',
+            'projects.sh': 'echo "Loading projects..."\n1. [ROOT-ME] Custom CTF Sandbox environment.\n2. [NET-SCAN] Automated Rust-based network mapping tool.\n3. [0DAY] Documented CVE-XXXXX bypass walkthrough.',
+            'sandbox.sh': 'Initializing authorized Shopify bug bounty environment...\n[OK] Partner account configured.\n[OK] Testing domains synchronized.\n[!] Commencing vulnerability research sequence...',
+            'contact.cfg': 'EMAIL: pwn@sec-lab.local\nGITHUB: github.com/seclab\nTWITTER: @sec_lab_hacker'
+        };
+
+        // Boot sequence messages
+        const bootSequence = [
+            "INIT: Starting Secure Boot...",
+            "Loading kernel modules... [OK]",
+            "Mounting encrypted filesystems... [OK]",
+            "Establishing secure uplink... [OK]",
+            "Bypassing mainframe firewall... [OK]",
+            "Welcome to SEC-LAB v2.0. Type 'help' to begin."
+        ];
+
+        // ASCII Art Banner
+        const banner = `
+  _________             .____          ___.    
+ /   _____/ ____   ____ |    |    ____ \\_ |__  
+ \\_____  \\_/ __ \\_/ ___\\|    |   \\__  \\ | __ \\ 
+ /        \\  ___/\\  \\___|    |___ / __ \\| \\_\\ \\
+/_______  /\\___  >\\___  >_______ (____  /___  /
+        \\/     \\/     \\/        \\/    \\/    \\/ 
+`;
+
+        // Command registry
+        const commands = {
+            'help': `Available commands:
+  <span class="info">ls</span>        - List directory contents
+  <span class="info">cat</span>       - Read a file (usage: cat [filename])
+  <span class="info">run</span>       - Execute a script (usage: run [scriptname])
+  <span class="info">scan</span>      - Run a simulated vulnerability scan (usage: scan [url])
+  <span class="info">whoami</span>    - Print current user privileges
+  <span class="info">clear</span>     - Clear the terminal screen
+  <span class="info">sudo</span>      - Execute a command as superuser`,
+            
+            'ls': `<span class="highlight">about.txt</span>   <span class="highlight">projects.sh</span>   <span class="highlight">sandbox.sh</span>   <span class="highlight">contact.cfg</span>`,
+            
+            'whoami': 'guest (UID: 1001)\nWarning: Limited privileges detected.',
+            
+            'sudo': '<span class="error">Access Denied.</span> This incident will be reported.'
+        };
+
+        // Utility: Append a line to the output
+        function printLine(text, isHTML = false, cssClass = 'output-line') {
+            const div = document.createElement('div');
+            div.className = cssClass;
+            if (isHTML) {
+                div.innerHTML = text;
+            } else {
+                div.textContent = text;
+            }
+            output.appendChild(div);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // Utility: Typewriter effect for engagement
+        async function typeWriter(text, speed = 20) {
+            const div = document.createElement('div');
+            div.className = 'output-line';
+            output.appendChild(div);
+            
+            for (let i = 0; i < text.length; i++) {
+                div.textContent += text.charAt(i);
+                terminal.scrollTop = terminal.scrollHeight;
+                await new Promise(r => setTimeout(r, speed));
+            }
+        }
+
+        // Handle specific commands with arguments (like cat, run, scan)
+        async function processCommand(cmdString) {
+            const args = cmdString.trim().split(/\s+/);
+            const cmd = args[0].toLowerCase();
+
+            if (!cmd) return;
+
+            // Echo the command the user just typed
+            printLine(`guest@sec-lab:~$ ${cmdString}`);
+
+            switch (cmd) {
+                case 'clear':
+                    output.innerHTML = '';
+                    break;
+                case 'cat':
+                    if (args.length < 2) {
+                        printLine('cat: missing operand');
+                    } else if (fileSystem[args[1]]) {
+                        if(args[1].endsWith('.sh')) {
+                             printLine(`cat: ${args[1]}: Permission denied (Use 'run' to execute scripts)`);
+                        } else {
+                             await typeWriter(fileSystem[args[1]], 10);
+                        }
+                    } else {
+                        printLine(`cat: ${args[1]}: No such file or directory`);
+                    }
+                    break;
+                case 'run':
+                    if (args.length < 2) {
+                        printLine('run: missing script name');
+                    } else if (args[1].endsWith('.sh') && fileSystem[args[1]]) {
+                        await typeWriter(`[System] Executing ${args[1]}...`, 30);
+                        await typeWriter(fileSystem[args[1]], 15);
+                    } else {
+                        printLine(`run: ${args[1]}: Script not found or not executable`);
+                    }
+                    break;
+                case 'scan':
+                    if (args.length < 2) {
+                        printLine('scan: missing target URL. Usage: scan [url]');
+                    } else {
+                        const targetUrl = args[1];
+                        // Simulate a scanning process with artificial delays
+                        await typeWriter(`Initializing scanner module...`, 20);
+                        await new Promise(r => setTimeout(r, 400));
+                        await typeWriter(`Target acquired: ${targetUrl}`, 20);
+                        await new Promise(r => setTimeout(r, 600));
+                        await typeWriter(`[+] Resolving DNS... [OK]`, 10);
+                        await new Promise(r => setTimeout(r, 500));
+                        await typeWriter(`[+] Probing ports 80/443... [OPEN]`, 10);
+                        await new Promise(r => setTimeout(r, 800));
+                        await typeWriter(`[+] Running simulated OWASP Top 10 checks...`, 20);
+                        await new Promise(r => setTimeout(r, 1200));
+                        printLine(`<span class="info">Scan complete.</span> This is a simulated environment. No actual network requests were made to ${targetUrl}.`, true);
+                    }
+                    break;
+                default:
+                    if (commands[cmd]) {
+                        printLine(commands[cmd], true);
+                    } else {
+                        printLine(`bash: ${cmd}: command not found. Type 'help' for available commands.`);
+                    }
+            }
+        }
+
+        // Input event listener
+        cmdInput.addEventListener('keydown', async function(e) {
+            if (e.key === 'Enter') {
+                const val = this.value;
+                this.value = '';
+                
+                // Disable input temporarily while processing
+                inputWrapper.style.display = 'none';
+                await processCommand(val);
+                inputWrapper.style.display = 'flex';
+                this.focus();
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+        });
+
+        // Sync visual custom cursor with actual hidden input text width
+        cmdInput.addEventListener('input', function() {
+            // A simple trick to keep the cursor at the end of the text
+        });
+
+        // Initialize Boot Sequence
+        window.onload = async () => {
+            cmdInput.disabled = true;
+            
+            for (let msg of bootSequence) {
+                await typeWriter(msg, Math.floor(Math.random() * 20) + 10);
+                await new Promise(r => setTimeout(r, 200)); // Pause between lines
+            }
+            
+            printLine(`<div class="ascii-art">${banner}</div>`, true);
+            
+            cmdInput.disabled = false;
+            inputWrapper.style.display = 'flex';
+            cmdInput.focus();
+        };
+    </script>
+</body>
+</html>
